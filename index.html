@@ -53,6 +53,7 @@
   .b-gain { color: var(--gain); background: var(--gain-bg); }
   .b-hold { color: var(--hold); background: var(--hold-bg); }
   .b-caution, .b-clearance { color: var(--caution); background: var(--caution-bg); }
+  .b-stall { color: #7FB4E8; background: #16232E; }
   .b-start { color: var(--ink-soft); background: var(--tap); }
   .pr {
     display: inline-block; font-size: 0.72rem; font-weight: 700; color: var(--ground);
@@ -247,7 +248,7 @@ const $ = sel => document.querySelector(sel);
 function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 function fmtW(w) { return (w % 1 ? w.toFixed(1) : String(w)); }
 function badge(v) {
-  const map = { gain: ["▲", "gain"], hold: ["▶", "hold"], clearance: ["⚠", "clearance"], start: ["·", "start"], caution: ["⚠", "caution"] };
+  const map = { gain: ["▲", "gain"], hold: ["▶", "hold"], clearance: ["⚠", "clearance"], start: ["·", "start"], caution: ["⚠", "caution"], stall: ["▼", "stall"] };
   const [ic, cls] = map[v] || ["·", "start"];
   return `<span class="badge b-${cls}">${ic} ${esc(v)}</span>`;
 }
