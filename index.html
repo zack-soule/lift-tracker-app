@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14181C">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Lift Tracker</title>
+<style>
+  :root {
+    --ground: #14181C;
+    --card: #1B2126;
+    --card-line: #2A323A;
+    --ink: #E6EAE7;
+    --ink-soft: #93A0A8;
+    --gain: #4CC585;
+    --gain-bg: #17301F;
+    --hold: #D9A94A;
+    --hold-bg: #2C2413;
+    --caution: #E0705F;
+    --caution-bg: #331B16;
+    --accent: #4CC585;
+    --tap: #232B31;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--ground); color: var(--ink);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    line-height: 1.45; font-size: 15px;
+    padding-bottom: calc(3.6rem + env(safe-area-inset-bottom));
+  }
+  main { max-width: 30rem; margin: 0 auto; padding: 0.8rem 0.9rem 1rem; }
+  h1 { font-size: 1.05rem; margin: 0.4rem 0 0.2rem; letter-spacing: -0.01em; }
+  h2 { font-size: 0.95rem; margin: 1.1rem 0 0.5rem; }
+  .sub { color: var(--ink-soft); font-size: 0.8rem; margin: 0 0 0.8rem; }
+  .card {
+    background: var(--card); border: 1px solid var(--card-line);
+    border-radius: 10px; padding: 0.7rem 0.85rem; margin: 0.55rem 0;
+  }
+  .row { display: flex; align-items: baseline; gap: 0.5rem; }
+  .row .grow { flex: 1; min-width: 0; }
+  .exname { font-weight: 650; font-size: 0.95rem; }
+  .sets { color: var(--ink-soft); font-size: 0.85rem; font-variant-numeric: tabular-nums; margin-top: 0.1rem; }
+  .next { font-size: 0.86rem; margin-top: 0.3rem; }
+  .next b { font-variant-numeric: tabular-nums; }
+  .note { color: var(--ink-soft); font-size: 0.8rem; margin-top: 0.25rem; }
+  .badge {
+    flex: none; font-size: 0.72rem; font-weight: 700; padding: 0.12em 0.55em;
+    border-radius: 5px; letter-spacing: 0.02em; white-space: nowrap;
+  }
+  .b-gain { color: var(--gain); background: var(--gain-bg); }
+  .b-hold { color: var(--hold); background: var(--hold-bg); }
+  .b-caution, .b-clearance { color: var(--caution); background: var(--caution-bg); }
+  .b-start { color: var(--ink-soft); background: var(--tap); }
+  .pr {
+    display: inline-block; font-size: 0.72rem; font-weight: 700; color: var(--ground);
+    background: var(--gain); border-radius: 5px; padding: 0.1em 0.5em; margin-top: 0.3rem;
+  }
+  .banner {
+    border-left: 3px solid var(--caution); background: var(--caution-bg);
+    border-radius: 0 8px 8px 0; padding: 0.55rem 0.8rem; font-size: 0.84rem; margin: 0.6rem 0;
+  }
+  .banner.warn { border-color: var(--hold); background: var(--hold-bg); }
+  .banner.ok { border-color: var(--gain); background: var(--gain-bg); }
+  /* volume bars */
+  .vol { margin: 0.35rem 0; }
+  .vol .lbl { display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--ink-soft); }
+  .vol .lbl b { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .track { position: relative; height: 8px; border-radius: 4px; background: var(--tap); margin-top: 3px; overflow: hidden; }
+  .band { position: absolute; top: 0; bottom: 0; background: rgba(255,255,255,0.10); }
+  .fill { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 4px; background: var(--hold); }
+  .fill.in { background: var(--gain); }
+  /* chips & buttons */
+  .chip { display: inline-block; font-size: 0.78rem; border: 1px solid var(--card-line); border-radius: 999px; padding: 0.15em 0.7em; color: var(--ink-soft); margin-right: 0.35rem; }
+  .chip b { color: var(--ink); }
+  button {
+    font: inherit; color: var(--ink); background: var(--tap);
+    border: 1px solid var(--card-line); border-radius: 8px; padding: 0.5rem 0.9rem;
+    cursor: pointer;
+  }
+  button.primary { background: var(--gain); color: #10241A; border-color: transparent; font-weight: 700; }
+  button.small { font-size: 0.8rem; padding: 0.3rem 0.65rem; }
+  button:disabled { opacity: 0.45; }
+  button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  input, select {
+    font: inherit; color: var(--ink); background: var(--ground);
+    border: 1px solid var(--card-line); border-radius: 8px; padding: 0.45rem 0.6rem; width: 100%;
+  }
+  label { display: block; font-size: 0.8rem; color: var(--ink-soft); margin: 0.7rem 0 0.25rem; }
+  a { color: var(--accent); }
+  /* tab bar */
+  nav {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 10;
+    display: flex; background: var(--card); border-top: 1px solid var(--card-line);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  nav button {
+    flex: 1; background: none; border: none; border-radius: 0; color: var(--ink-soft);
+    font-size: 0.72rem; padding: 0.55rem 0 0.5rem; display: flex; flex-direction: column; gap: 2px; align-items: center;
+  }
+  nav button .ic { font-size: 1.05rem; line-height: 1; }
+  nav button.on { color: var(--accent); }
+  /* modal */
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 20; display: flex; align-items: flex-end; justify-content: center; }
+  .sheet { background: var(--card); border: 1px solid var(--card-line); border-radius: 14px 14px 0 0; width: 100%; max-width: 30rem; padding: 1rem 1rem 1.4rem; }
+  .sheet h3 { margin: 0 0 0.2rem; font-size: 1rem; }
+  .sheet .actions { display: flex; gap: 0.6rem; margin-top: 1rem; }
+  .sheet .actions button { flex: 1; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.84rem; font-variant-numeric: tabular-nums; }
+  td, th { text-align: left; padding: 0.25rem 0.5rem 0.25rem 0; border-bottom: 1px solid var(--card-line); }
+  th { color: var(--ink-soft); font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  .day-h { display: flex; justify-content: space-between; align-items: baseline; margin: 1rem 0 0.3rem; }
+  .day-h .d { font-weight: 700; }
+  .day-h .meta { color: var(--ink-soft); font-size: 0.78rem; }
+  .center { text-align: center; color: var(--ink-soft); padding: 2rem 1rem; font-size: 0.9rem; }
+  .statusline { font-size: 0.78rem; color: var(--ink-soft); margin: 0.3rem 0 0; min-height: 1.1em; }
+  svg text { fill: var(--ink-soft); font-size: 10px; font-variant-numeric: tabular-nums; }
+  .exrow { border-top: 1px solid var(--card-line); padding: 0.5rem 0; }
+  .exrow:first-child { border-top: none; }
+  .tapable { cursor: pointer; border-radius: 6px; margin: 0 -0.4rem; padding: 0.5rem 0.4rem; }
+  .tapable:active { background: var(--tap); }
+  .edited { color: var(--hold); font-size: 0.72rem; font-weight: 700; }
+</style>
+</head>
+<body>
+<main id="view"><div class="center">Loading…</div></main>
+<nav id="nav"></nav>
+
+<script>
+"use strict";
+/* ============================== state & config ============================= */
+const LS = "lt_cfg_v1";
+const TABS = [
+  {id:"today", label:"Today", ic:"◔"},
+  {id:"week",  label:"Week",  ic:"▤"},
+  {id:"trends",label:"Trends",ic:"↗"},
+  {id:"log",   label:"Log",   ic:"≡"},
+  {id:"settings", label:"Setup", ic:"⚙"},
+];
+let tab = "today";
+let S = {            // loaded data
+  sessions: null, weekly: null, config: null, db: null,
+  proposal: null, approval: null, debriefs: [], debrief: null,
+  shas: {},          // path -> sha for writes
+};
+let overrides = {};  // "dayKey:idx" -> {weight, sets, exercise}
+let loadedOnce = false;
+
+function cfg() {
+  try { return JSON.parse(localStorage.getItem(LS)) || {}; } catch { return {}; }
+}
+function saveCfg(c) { localStorage.setItem(LS, JSON.stringify(c)); }
+// Local mode: opened over http(s) on localhost with no PAT -> read ../data directly.
+function localMode() {
+  return !cfg().pat && /^(localhost|127\.)/.test(location.hostname);
+}
+
+/* ============================== github api ================================ */
+const API = "https://api.github.com";
+function ghHeaders(extra) {
+  return Object.assign({
+    "Authorization": "Bearer " + cfg().pat,
+    "X-GitHub-Api-Version": "2022-11-28",
+  }, extra);
+}
+function repoPath(p) { return `${API}/repos/${cfg().owner}/${cfg().repo}/contents/${p}`; }
+
+async function ghReadJson(path) {
+  if (localMode()) {
+    const r = await fetch("../" + path + "?t=" + Date.now());
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
+    return r.json();
+  }
+  const r = await fetch(repoPath(path) + `?ref=${cfg().branch || "master"}`,
+    { headers: ghHeaders({ "Accept": "application/vnd.github.raw+json" }) });
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
+  return r.json();
+}
+async function ghList(dir) {
+  if (localMode()) {
+    // no directory listing over plain http; probe the debrief for each session date
+    const dates = [...new Set((S.sessions || []).map(s => s.date))].sort().slice(-10);
+    const found = [];
+    for (const d of dates) {
+      const r = await fetch(`../${dir}/${d}.json?t=` + Date.now());
+      if (r.ok) found.push({ name: d + ".json" });
+    }
+    return found;
+  }
+  const r = await fetch(repoPath(dir) + `?ref=${cfg().branch || "master"}`,
+    { headers: ghHeaders({ "Accept": "application/vnd.github+json" }) });
+  if (r.status === 404) return [];
+  if (!r.ok) throw new Error(`${dir}: HTTP ${r.status}`);
+  return r.json();
+}
+async function ghSha(path) {
+  const r = await fetch(repoPath(path) + `?ref=${cfg().branch || "master"}`,
+    { headers: ghHeaders({ "Accept": "application/vnd.github+json" }) });
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
+  return (await r.json()).sha;
+}
+function b64(str) {
+  const bytes = new TextEncoder().encode(str);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 8192)
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+  return btoa(bin);
+}
+async function ghWriteJson(path, obj, message) {
+  if (localMode()) throw new Error("Local mode is read-only — add a token in Setup to save changes.");
+  const sha = await ghSha(path);
+  const body = { message, content: b64(JSON.stringify(obj, null, 1)), branch: cfg().branch || "master" };
+  if (sha) body.sha = sha;
+  const r = await fetch(repoPath(path), { method: "PUT", headers: ghHeaders({ "Accept": "application/vnd.github+json" }), body: JSON.stringify(body) });
+  if (!r.ok) throw new Error(`write ${path}: HTTP ${r.status} ${(await r.text()).slice(0, 200)}`);
+}
+async function syncNow() {
+  const r = await fetch(`${API}/repos/${cfg().owner}/${cfg().repo}/actions/workflows/sync.yml/dispatches`,
+    { method: "POST", headers: ghHeaders({ "Accept": "application/vnd.github+json" }),
+      body: JSON.stringify({ ref: cfg().branch || "master" }) });
+  if (r.status !== 204) throw new Error("Sync dispatch failed: HTTP " + r.status);
+}
+
+/* ============================== data load ================================= */
+async function loadAll() {
+  const [sessions, weekly, config, db, proposal, approval] = await Promise.all([
+    ghReadJson("data/sessions.json"), ghReadJson("data/weekly_load.json"),
+    ghReadJson("data/config.json"), ghReadJson("data/exercises.json"),
+    ghReadJson("data/proposal.json"), ghReadJson("data/approval.json"),
+  ]);
+  S.sessions = (sessions || { sets: [] }).sets;
+  S.weekly = weekly || {}; S.config = config || {}; S.db = db;
+  S.proposal = proposal; S.approval = approval;
+  const files = await ghList("data/debriefs");
+  S.debriefs = files.map(f => f.name.replace(".json", "")).filter(n => /^\d{4}-/.test(n)).sort();
+  S.debrief = S.debriefs.length ? await ghReadJson(`data/debriefs/${S.debriefs[S.debriefs.length - 1]}.json`) : null;
+  loadedOnce = true;
+}
+
+/* ============================== rendering ================================= */
+const $ = sel => document.querySelector(sel);
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+function fmtW(w) { return (w % 1 ? w.toFixed(1) : String(w)); }
+function badge(v) {
+  const map = { gain: ["▲", "gain"], hold: ["▶", "hold"], clearance: ["⚠", "clearance"], start: ["·", "start"], caution: ["⚠", "caution"] };
+  const [ic, cls] = map[v] || ["·", "start"];
+  return `<span class="badge b-${cls}">${ic} ${esc(v)}</span>`;
+}
+function nav() {
+  $("#nav").innerHTML = TABS.map(t =>
+    `<button class="${t.id === tab ? "on" : ""}" onclick="go('${t.id}')"><span class="ic">${t.ic}</span>${t.label}</button>`).join("");
+}
+window.go = function (t) { tab = t; render(); };
+
+function render() {
+  nav();
+  const v = $("#view");
+  if (!cfg().pat && !localMode() && tab !== "settings") { tab = "settings"; nav(); }
+  if (tab === "settings") return renderSettings(v);
+  if (!loadedOnce) { v.innerHTML = `<div class="center">Loading…</div>`; return; }
+  if (tab === "today") return renderToday(v);
+  if (tab === "week") return renderWeek(v);
+  if (tab === "trends") return renderTrends(v);
+  if (tab === "log") return renderLog(v);
+}
+
+/* ------------------------------ today ------------------------------------ */
+function volBars(vol) {
+  const cats = Object.keys(vol);
+  return cats.map(c => {
+    const { done, lo, hi } = vol[c];
+    const max = hi * 1.25;
+    const inBand = done >= lo && done <= hi;
+    return `<div class="vol"><div class="lbl"><span>${esc(c)}</span><b>${done} / ${lo}–${hi}</b></div>
+      <div class="track">
+        <div class="band" style="left:${lo / max * 100}%;width:${(hi - lo) / max * 100}%"></div>
+        <div class="fill ${inBand || done > hi ? "in" : ""}" style="width:${Math.min(done, max) / max * 100}%"></div>
+      </div></div>`;
+  }).join("");
+}
+function setsLine(r) {
+  return r.sets_done.map(s => r.pattern === "timed" && s.duration
+    ? `${Math.round(s.duration)}s` : `${s.reps}@${fmtW(s.weight)}`).join(", ");
+}
+function nextLine(r) {
+  if (!r.next) return "";
+  const n = r.next;
+  if ("duration" in n) return `<div class="next">next: ${esc(n.note)}</div>`;
+  const reps = n.reps_lo === n.reps_hi ? n.reps_lo : `${n.reps_lo}–${n.reps_hi}`;
+  return `<div class="next">next: <b>${fmtW(n.weight)} ${esc(r.unit)} × ${reps}</b> — ${esc(n.note)}</div>`;
+}
+function renderToday(v) {
+  const d = S.debrief;
+  if (!d) { v.innerHTML = `<h1>Today</h1><div class="center">No debriefs yet.<br>Lift, sync your watch, and this fills in.</div>${syncBtn()}`; return; }
+  const picker = S.debriefs.length > 1 ? `<select style="width:auto" onchange="pickDebrief(this.value)">
+      ${S.debriefs.slice().reverse().map(x => `<option ${x === d.date ? "selected" : ""}>${x}</option>`).join("")}</select>` : esc(d.date);
+  const review = d.exercises.some(r => r.needs_review)
+    ? `<div class="banner warn">Some sets have an ambiguous Garmin label — resolve them in the Log tab.</div>` : "";
+  v.innerHTML = `
+    <h1 class="row"><span class="grow">Session debrief</span>${picker}</h1>
+    <p class="sub">${d.prs.length ? `🏅 ${d.prs.length} PR${d.prs.length > 1 ? "s" : ""} · ` : ""}${d.exercises.length} exercises</p>
+    ${d.warnings.map(w => `<div class="banner">${esc(w)}</div>`).join("")}${review}
+    ${d.exercises.map(r => `
+      <div class="card">
+        <div class="row"><span class="grow exname">${esc(r.exercise)}</span>${badge(r.verdict)}</div>
+        <div class="sets">${setsLine(r)}${r.pattern === "descending" ? " · drop sets — scored on top set" : ""}${r.warmup_sets ? ` · ${r.warmup_sets} warmup` : ""}</div>
+        ${nextLine(r)}
+        ${r.pr ? `<span class="pr">PR — ${esc(r.pr)}</span>` : ""}
+        ${(r.notes || []).map(n => `<div class="note">${esc(n)}</div>`).join("")}
+      </div>`).join("")}
+    <h2>Weekly volume (trailing 7 days)</h2>
+    <div class="card">${volBars(d.weekly_volume)}</div>
+    ${d.acwr ? `<span class="chip">load ratio <b>${d.acwr}</b> ${d.acwr > 1.3 ? "· hot — gains held" : "· safe band"}</span>` : ""}
+    ${syncBtn()}`;
+}
+window.pickDebrief = async function (date) {
+  S.debrief = await ghReadJson(`data/debriefs/${date}.json`); render();
+};
+function syncBtn() {
+  if (localMode()) return `<p class="sub" style="margin-top:1rem">Local mode — reading files directly, writes off.</p>`;
+  return `<div style="margin-top:1.1rem"><button onclick="doSync(this)">⟳ Sync from Garmin now</button><div class="statusline" id="syncstat"></div></div>`;
+}
+window.doSync = async function (btn) {
+  btn.disabled = true;
+  try { await syncNow(); $("#syncstat").textContent = "Sync started — new sessions appear in a couple of minutes. Pull down / reload to refresh."; }
+  catch (e) { $("#syncstat").textContent = e.message; }
+  btn.disabled = false;
+};
+
+/* ------------------------------ week ------------------------------------- */
+function planLine(p, o) {
+  const w = o.weight ?? p.weight, sets = o.sets ?? p.sets, ex = o.exercise ?? p.exercise;
+  if (p.excluded_from_push) return `<div class="sets">excluded until cleared</div>`;
+  if ("duration" in p) return `<div class="sets">${sets}× ${Math.round(p.duration)}s hold</div>`;
+  if (w == null) return `<div class="sets">${esc(p.note || "set weight")}</div>`;
+  const reps = p.reps_lo === p.reps_hi ? p.reps_lo : `${p.reps_lo}–${p.reps_hi}`;
+  return `<div class="sets"><b>${sets}×${reps} @ ${fmtW(w)}</b>${p.note ? ` — ${esc(p.note)}` : ""}</div>`;
+}
+function renderWeek(v) {
+  const P = S.proposal;
+  if (!P) { v.innerHTML = `<h1>Next week</h1><div class="center">No proposal yet.<br>It generates every Sunday evening — or run the propose workflow from GitHub.</div>`; return; }
+  const approved = S.approval && S.approval.week_of === P.week_of;
+  const nEdits = Object.keys(overrides).length;
+  v.innerHTML = `
+    <h1>Week of ${esc(P.week_of)}</h1>
+    <p class="sub">from data through ${esc(P.generated_from_data_through)}${P.acwr ? ` · load ratio ${P.acwr}` : ""}</p>
+    ${P.back_cleared ? "" : `<div class="banner">Lower-back clearance gate is ON — gated lifts hold and are excluded from any push. Flip <b>back_cleared</b> in data/config.json after PT clearance.</div>`}
+    ${P.warnings.map(w => `<div class="banner warn">${esc(w)}</div>`).join("")}
+    ${approved ? `<div class="banner ok">Approved ${esc(S.approval.approved_at)}. Re-approve to overwrite.</div>` : ""}
+    ${P.days.map(day => `
+      <div class="day-h"><span class="d">${esc(day.label)}</span></div>
+      <div class="card">
+        ${day.exercises.map((p, i) => {
+          const k = day.key + ":" + i, o = overrides[k] || {};
+          return `<div class="exrow tapable" onclick="editEx('${day.key}',${i})">
+            <div class="row"><span class="grow exname">${esc(o.exercise ?? p.exercise)} ${o.weight || o.exercise || o.sets ? `<span class="edited">edited</span>` : ""}</span>${badge(p.call)}</div>
+            ${planLine(p, o)}
+            ${(p.notes || []).map(n => `<div class="note">${esc(n)}</div>`).join("")}
+          </div>`;
+        }).join("")}
+      </div>`).join("")}
+    <div style="margin-top:1.2rem;display:flex;gap:0.6rem">
+      <button class="primary" style="flex:1" onclick="approve(this)">${approved ? "Re-approve" : "Approve week"}${nEdits ? ` (${nEdits} edit${nEdits > 1 ? "s" : ""})` : ""}</button>
+    </div>
+    <div class="statusline" id="apstat"></div>
+    <p class="sub" style="margin-top:0.6rem">Approving records the plan to the repo. Push-to-watch lands with Phase 4 — until then, mirror the numbers in Garmin Connect.</p>`;
+}
+window.editEx = function (dayKey, i) {
+  const day = S.proposal.days.find(d => d.key === dayKey), p = day.exercises[i];
+  const k = dayKey + ":" + i, o = overrides[k] || {};
+  const cat = (S.db.exercises[p.exercise] || {}).cat;
+  const options = Object.keys(S.db.exercises).filter(n => S.db.exercises[n].cat === cat).sort();
+  const el = document.createElement("div");
+  el.className = "overlay"; el.onclick = e => { if (e.target === el) el.remove(); };
+  el.innerHTML = `<div class="sheet">
+    <h3>${esc(p.exercise)}</h3>
+    <p class="sub">${esc(day.label)}</p>
+    <label>Exercise (swap within ${esc(cat)})</label>
+    <select id="m-ex">${options.map(n => `<option ${n === (o.exercise ?? p.exercise) ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>
+    <label>Weight (${esc((S.db.exercises[p.exercise] || {}).unit || "lb")})</label>
+    <input id="m-w" type="number" step="0.5" value="${o.weight ?? p.weight ?? ""}" placeholder="—">
+    <label>Sets</label>
+    <input id="m-s" type="number" step="1" min="1" max="6" value="${o.sets ?? p.sets ?? 3}">
+    <div class="actions">
+      <button onclick="this.closest('.overlay').remove()">Cancel</button>
+      <button class="small" onclick="clearEdit('${k}')">Reset</button>
+      <button class="primary" onclick="saveEdit('${k}')">Save</button>
+    </div></div>`;
+  document.body.appendChild(el);
+};
+window.saveEdit = function (k) {
+  const ex = $("#m-ex").value, w = $("#m-w").value, s = $("#m-s").value;
+  overrides[k] = {};
+  const [dayKey, i] = k.split(":"), p = S.proposal.days.find(d => d.key === dayKey).exercises[+i];
+  if (ex !== p.exercise) overrides[k].exercise = ex;
+  if (w !== "" && +w !== p.weight) overrides[k].weight = +w;
+  if (s !== "" && +s !== p.sets) overrides[k].sets = +s;
+  if (!Object.keys(overrides[k]).length) delete overrides[k];
+  document.querySelector(".overlay").remove(); render();
+};
+window.clearEdit = function (k) { delete overrides[k]; document.querySelector(".overlay").remove(); render(); };
+window.approve = async function (btn) {
+  btn.disabled = true; $("#apstat").textContent = "Saving…";
+  try {
+    const plan = JSON.parse(JSON.stringify(S.proposal));
+    plan.days.forEach(day => day.exercises.forEach((p, i) => {
+      const o = overrides[day.key + ":" + i];
+      if (o) { Object.assign(p, o); p.overridden = true; }
+    }));
+    const approval = { week_of: plan.week_of, approved_at: new Date().toISOString().slice(0, 16).replace("T", " "), status: "approved", days: plan.days };
+    await ghWriteJson("data/approval.json", approval, "approve: week of " + plan.week_of);
+    S.approval = approval; overrides = {};
+    $("#apstat").textContent = "Approved and recorded ✓";
+    render();
+  } catch (e) { $("#apstat").textContent = e.message; btn.disabled = false; }
+};
+
+/* ------------------------------ trends ----------------------------------- */
+let trendEx = null;
+function topWeightByDate(ex) {
+  const days = {};
+  S.sessions.filter(s => s.exercise === ex).forEach(s => {
+    days[s.date] = Math.max(days[s.date] || 0, s.weight || 0);
+  });
+  return Object.entries(days).sort((a, b) => a[0] < b[0] ? -1 : 1);
+}
+function renderTrends(v) {
+  const names = [...new Set(S.sessions.map(s => s.exercise))].sort();
+  if (!names.length) { v.innerHTML = `<h1>Trends</h1><div class="center">No data yet.</div>`; return; }
+  if (!trendEx || !names.includes(trendEx)) trendEx = names.includes("Barbell Bench Press") ? "Barbell Bench Press" : names[0];
+  const pts = topWeightByDate(trendEx);
+  const W = 400, H = 180, pad = 30;
+  const ws = pts.map(p => p[1]);
+  const lo = Math.min(...ws), hi = Math.max(...ws), span = (hi - lo) || 1;
+  const x = i => pad + i * (W - pad - 10) / Math.max(pts.length - 1, 1);
+  const y = w => H - 22 - (w - lo) * (H - 45) / span;
+  const path = pts.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p[1]).toFixed(1)}`).join(" ");
+  const last = pts[pts.length - 1];
+  v.innerHTML = `
+    <h1>Trends</h1>
+    <label>Exercise</label>
+    <select onchange="setTrend(this.value)">${names.map(n => `<option ${n === trendEx ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>
+    <div class="card" style="margin-top:0.8rem;overflow-x:auto">
+      <svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:280px">
+        <text x="2" y="${y(hi) + 4}">${fmtW(hi)}</text>
+        <text x="2" y="${y(lo) + 4}">${fmtW(lo)}</text>
+        <line x1="${pad}" y1="${y(hi)}" x2="${W - 8}" y2="${y(hi)}" stroke="var(--card-line)" stroke-dasharray="3 4"/>
+        <line x1="${pad}" y1="${y(lo)}" x2="${W - 8}" y2="${y(lo)}" stroke="var(--card-line)" stroke-dasharray="3 4"/>
+        <path d="${path}" fill="none" stroke="var(--gain)" stroke-width="2"/>
+        ${pts.map((p, i) => `<circle cx="${x(i)}" cy="${y(p[1])}" r="${i === pts.length - 1 ? 4 : 2.5}" fill="var(--gain)"/>`).join("")}
+        <text x="${Math.min(x(pts.length - 1), W - 40)}" y="${y(last[1]) - 8}" style="font-weight:700">${fmtW(last[1])}</text>
+        <text x="${pad}" y="${H - 6}">${pts[0][0]}</text>
+        <text x="${W - 78}" y="${H - 6}">${last[0]}</text>
+      </svg>
+    </div>
+    <div class="card"><table><tr><th>date</th><th>top set</th><th>all sets</th></tr>
+      ${pts.slice().reverse().map(([d]) => {
+        const day = S.sessions.filter(s => s.exercise === trendEx && s.date === d);
+        const top = Math.max(...day.map(s => s.weight || 0));
+        const topReps = day.filter(s => (s.weight || 0) === top).map(s => s.reps).join(",");
+        return `<tr><td>${d}</td><td>${topReps}×${fmtW(top)}</td><td>${day.map(s => `${s.reps}@${fmtW(s.weight)}`).join(" ")}</td></tr>`;
+      }).join("")}</table></div>`;
+}
+window.setTrend = function (n) { trendEx = n; render(); };
+
+/* ------------------------------ log + review ----------------------------- */
+const AMBIG_CHOICES = [
+  ["Cable Crossover", "standing cable twist (core)"],
+  ["High to Low Cable Fly", "high-to-low fly (chest)"],
+  ["Seated Fly Machine", "seated pec fly machine (chest)"],
+];
+function renderLog(v) {
+  const flagged = S.sessions.filter(s => s.needs_review);
+  const byDate = {};
+  S.sessions.forEach(s => (byDate[s.date] = byDate[s.date] || []).push(s));
+  const dates = Object.keys(byDate).sort().reverse();
+  v.innerHTML = `
+    <h1>Log</h1>
+    <p class="sub">${S.sessions.length} sets · ${dates.length} sessions</p>
+    ${flagged.length ? `<h2>Needs review</h2>
+      ${[...new Set(flagged.map(s => s.date))].map(d => `
+        <div class="card">
+          <div class="exname">${d} — “Cable Crossover” × ${flagged.filter(s => s.date === d).length} sets</div>
+          <div class="note">This Garmin label has meant three different exercises. What was it that day?</div>
+          <div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-top:0.5rem">
+            ${AMBIG_CHOICES.map(([canon, label]) => `<button class="small" onclick="resolveReview('${d}','${canon}',this)">${esc(label)}</button>`).join("")}
+          </div><div class="statusline"></div>
+        </div>`).join("")}` : ""}
+    ${dates.map(d => `
+      <div class="day-h"><span class="d">${d}</span><span class="meta">${byDate[d].length} sets</span></div>
+      <div class="card"><table>
+        ${(() => {
+          const rows = []; let prev = null;
+          byDate[d].sort((a, b) => a.seq - b.seq).forEach(s => {
+            const name = s.exercise === prev ? "" : esc(s.exercise); prev = s.exercise;
+            rows.push(`<tr><td>${name}${s.needs_review ? " ⚠" : ""}</td><td>${s.duration && s.reps <= 1 ? Math.round(s.duration) + "s" : s.reps + " × " + fmtW(s.weight)}</td></tr>`);
+          });
+          return rows.join("");
+        })()}
+      </table></div>`).join("")}`;
+}
+window.resolveReview = async function (date, canonical, btn) {
+  btn.disabled = true;
+  const stat = btn.closest(".card").querySelector(".statusline");
+  stat.textContent = "Saving…";
+  try {
+    S.sessions.forEach(s => {
+      if (s.date === date && s.needs_review) { s.exercise = canonical; s.needs_review = false; }
+    });
+    await ghWriteJson("data/sessions.json", { sets: S.sessions }, `review: ${date} Cable Crossover -> ${canonical}`);
+    render();
+  } catch (e) { stat.textContent = e.message; btn.disabled = false; }
+};
+
+/* ------------------------------ settings --------------------------------- */
+function renderSettings(v) {
+  const c = cfg();
+  v.innerHTML = `
+    <h1>Setup</h1>
+    <p class="sub">The app talks straight to your private GitHub repo. Nothing else sees your data.</p>
+    <div class="card">
+      <label>GitHub username</label><input id="s-owner" value="${esc(c.owner || "zack-soule")}">
+      <label>Repository</label><input id="s-repo" value="${esc(c.repo || "lift-tracker")}">
+      <label>Branch</label><input id="s-branch" value="${esc(c.branch || "master")}">
+      <label>Fine-grained personal access token</label>
+      <input id="s-pat" type="password" value="${esc(c.pat || "")}" placeholder="github_pat_…">
+      <div class="note" style="margin-top:0.5rem">
+        Create at GitHub → Settings → Developer settings → Fine-grained tokens:
+        repository access = <b>only lift-tracker</b>; permissions = Contents
+        <b>read &amp; write</b> + Actions <b>read &amp; write</b>. Set a ~1 year expiry.
+        It's stored only in this browser.
+      </div>
+      <div class="sheet actions" style="padding:0;border:0;background:none">
+        <button class="primary" onclick="saveSettings(this)">Save &amp; connect</button>
+      </div>
+      <div class="statusline" id="setstat">${localMode() ? "Local mode active (reading ../data directly)." : ""}</div>
+    </div>`;
+}
+window.saveSettings = async function (btn) {
+  btn.disabled = true;
+  saveCfg({ owner: $("#s-owner").value.trim(), repo: $("#s-repo").value.trim(),
+            branch: $("#s-branch").value.trim() || "master", pat: $("#s-pat").value.trim() });
+  $("#setstat").textContent = "Connecting…";
+  try { await loadAll(); $("#setstat").textContent = "Connected ✓"; tab = "today"; render(); }
+  catch (e) { $("#setstat").textContent = "Failed: " + e.message; }
+  btn.disabled = false;
+};
+
+/* ============================== boot ====================================== */
+(async function () {
+  render();
+  if (cfg().pat || localMode()) {
+    try { await loadAll(); } catch (e) {
+      $("#view").innerHTML = `<div class="center">Couldn't load data:<br>${esc(e.message)}</div>`;
+      return;
+    }
+    render();
+  }
+})();
+</script>
+</body>
+</html>
