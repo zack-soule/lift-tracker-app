@@ -54,6 +54,7 @@
   .b-hold { color: var(--hold); background: var(--hold-bg); }
   .b-caution, .b-clearance { color: var(--caution); background: var(--caution-bg); }
   .b-stall { color: #7FB4E8; background: #16232E; }
+  .b-light { color: #B9A7E8; background: #211B31; }
   .b-start { color: var(--ink-soft); background: var(--tap); }
   .pr {
     display: inline-block; font-size: 0.72rem; font-weight: 700; color: var(--ground);
@@ -248,7 +249,7 @@ const $ = sel => document.querySelector(sel);
 function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 function fmtW(w) { return (w % 1 ? w.toFixed(1) : String(w)); }
 function badge(v) {
-  const map = { gain: ["▲", "gain"], hold: ["▶", "hold"], clearance: ["⚠", "clearance"], start: ["·", "start"], caution: ["⚠", "caution"], stall: ["▼", "stall"] };
+  const map = { gain: ["▲", "gain"], hold: ["▶", "hold"], clearance: ["⚠", "clearance"], start: ["·", "start"], caution: ["⚠", "caution"], stall: ["▼", "stall"], light: ["◇", "light"] };
   const [ic, cls] = map[v] || ["·", "start"];
   return `<span class="badge b-${cls}">${ic} ${esc(v)}</span>`;
 }
@@ -471,9 +472,10 @@ window.setTrend = function (n) { trendEx = n; render(); };
 
 /* ------------------------------ log + review ----------------------------- */
 const AMBIG_CHOICES = [
-  ["Cable Crossover", "standing cable twist (core)"],
-  ["High to Low Cable Fly", "high-to-low fly (chest)"],
-  ["Seated Fly Machine", "seated pec fly machine (chest)"],
+  ["High to Low Cable Fly", "high-to-low cable fly"],
+  ["Standing Cable Fly", "regular cable fly"],
+  ["Seated Fly Machine", "seated pec fly machine"],
+  ["Standing Cable Twist", "cable twist (core)"],
 ];
 function renderLog(v) {
   const flagged = S.sessions.filter(s => s.needs_review);
@@ -487,7 +489,7 @@ function renderLog(v) {
       ${[...new Set(flagged.map(s => s.date))].map(d => `
         <div class="card">
           <div class="exname">${d} — “Cable Crossover” × ${flagged.filter(s => s.date === d).length} sets</div>
-          <div class="note">This Garmin label has meant three different exercises. What was it that day?</div>
+          <div class="note">Garmin can't encode this exercise. What was it that day?</div>
           <div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-top:0.5rem">
             ${AMBIG_CHOICES.map(([canon, label]) => `<button class="small" onclick="resolveReview('${d}','${canon}',this)">${esc(label)}</button>`).join("")}
           </div><div class="statusline"></div>
