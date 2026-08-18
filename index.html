@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#14181C">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Lift Tracker</title>
 <style>
   :root {
@@ -29,9 +29,15 @@
     background: var(--ground); color: var(--ink);
     font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
     line-height: 1.45; font-size: 15px;
-    padding-bottom: calc(3.6rem + env(safe-area-inset-bottom));
+    /* home-screen (standalone) mode draws under the status bar / notch */
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: calc(3.6rem + env(safe-area-inset-bottom, 0px));
   }
   main { max-width: 30rem; margin: 0 auto; padding: 0.8rem 0.9rem 1rem; }
+  /* extra breathing room when launched from the home screen */
+  @media (display-mode: standalone) {
+    main { padding-top: 0.6rem; }
+  }
   h1 { font-size: 1.05rem; margin: 0.4rem 0 0.2rem; letter-spacing: -0.01em; }
   h2 { font-size: 0.95rem; margin: 1.1rem 0 0.5rem; }
   .sub { color: var(--ink-soft); font-size: 0.8rem; margin: 0 0 0.8rem; }
@@ -106,7 +112,7 @@
   nav button.on { color: var(--accent); }
   /* modal */
   .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 20; display: flex; align-items: flex-end; justify-content: center; }
-  .sheet { background: var(--card); border: 1px solid var(--card-line); border-radius: 14px 14px 0 0; width: 100%; max-width: 30rem; padding: 1rem 1rem 1.4rem; }
+  .sheet { background: var(--card); border: 1px solid var(--card-line); border-radius: 14px 14px 0 0; width: 100%; max-width: 30rem; padding: 1rem 1rem calc(1.4rem + env(safe-area-inset-bottom, 0px)); }
   .sheet h3 { margin: 0 0 0.2rem; font-size: 1rem; }
   .sheet .actions { display: flex; gap: 0.6rem; margin-top: 1rem; }
   .sheet .actions button { flex: 1; }
@@ -221,12 +227,14 @@ async function ghWriteJson(path, obj, message) {
   const r = await fetch(repoPath(path), { method: "PUT", headers: ghHeaders({ "Accept": "application/vnd.github+json" }), body: JSON.stringify(body) });
   if (!r.ok) throw new Error(`write ${path}: HTTP ${r.status} ${(await r.text()).slice(0, 200)}`);
 }
-async function syncNow() {
-  const r = await fetch(`${API}/repos/${cfg().owner}/${cfg().repo}/actions/workflows/sync.yml/dispatches`,
-    { method: "POST", headers: ghHeaders({ "Accept": "application/vnd.github+json" }),
-      body: JSON.stringify({ ref: cfg().branch || "master" }) });
-  if (r.status !== 204) throw new Error("Sync dispatch failed: HTTP " + r.status);
+async function dispatch(workflow, inputs) {
+  const body = { ref: cfg().branch || "master" };
+  if (inputs) body.inputs = inputs;
+  const r = await fetch(`${API}/repos/${cfg().owner}/${cfg().repo}/actions/workflows/${workflow}/dispatches`,
+    { method: "POST", headers: ghHeaders({ "Accept": "application/vnd.github+json" }), body: JSON.stringify(body) });
+  if (r.status !== 204) throw new Error(`${workflow} dispatch failed: HTTP ` + r.status);
 }
+async function syncNow() { return dispatch("sync.yml"); }
 
 /* ============================== data load ================================= */
 async function loadAll() {
@@ -370,7 +378,7 @@ function renderWeek(v) {
       <button class="primary" style="flex:1" onclick="approve(this)">${approved ? "Re-approve" : "Approve week"}${nEdits ? ` (${nEdits} edit${nEdits > 1 ? "s" : ""})` : ""}</button>
     </div>
     <div class="statusline" id="apstat"></div>
-    <p class="sub" style="margin-top:0.6rem">Approving records the plan to the repo. Push-to-watch lands with Phase 4 — until then, mirror the numbers in Garmin Connect.</p>`;
+    <p class="sub" style="margin-top:0.6rem">Approving pushes 4 combined workouts (lift + its core day) to your Garmin library — pick any of them on any day from the watch. Warmup ramps and core circuits are built in.</p>`;
 }
 window.editEx = function (dayKey, i) {
   const day = S.proposal.days.find(d => d.key === dayKey), p = day.exercises[i];
@@ -516,6 +524,8 @@ window.resolveReview = async function (date, canonical, btn) {
       if (s.date === date && s.needs_review) { s.exercise = canonical; s.needs_review = false; }
     });
     await ghWriteJson("data/sessions.json", { sets: S.sessions }, `review: ${date} Cable Crossover -> ${canonical}`);
+    // re-score that session so the debrief reflects the corrected exercise
+    try { await dispatch("redebrief.yml", { date }); } catch (e) { console.warn(e); }
     render();
   } catch (e) { stat.textContent = e.message; btn.disabled = false; }
 };
