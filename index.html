@@ -122,6 +122,7 @@
   .day-h { display: flex; justify-content: space-between; align-items: baseline; margin: 1rem 0 0.3rem; }
   .day-h .d { font-weight: 700; }
   .day-h .meta { color: var(--ink-soft); font-size: 0.78rem; }
+  .daypick { width: auto; font-size: 0.8rem; padding: 0.25rem 0.5rem; }
   .center { text-align: center; color: var(--ink-soft); padding: 2rem 1rem; font-size: 0.9rem; }
   .statusline { font-size: 0.78rem; color: var(--ink-soft); margin: 0.3rem 0 0; min-height: 1.1em; }
   svg text { fill: var(--ink-soft); font-size: 10px; font-variant-numeric: tabular-nums; }
@@ -154,7 +155,11 @@ let S = {            // loaded data
   shas: {},          // path -> sha for writes
 };
 let overrides = {};  // "dayKey:idx" -> {weight, sets, exercise}
+let schedule = {};   // liftDayKey -> "Mon".."Sun" (core days ride with their lift day)
 let loadedOnce = false;
+const WD = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const CORE_OF = { chest: "abs", shoulders_tri: "obliques", glutes_hams: "stability" };
+const LIFT_OF = { abs: "chest", obliques: "shoulders_tri", stability: "glutes_hams" };
 
 function cfg() {
   try { return JSON.parse(localStorage.getItem(LS)) || {}; } catch { return {}; }
@@ -186,7 +191,10 @@ async function ghReadJson(path) {
     { headers: ghHeaders({ "Accept": "application/vnd.github.raw+json" }) });
   if (r.status === 404) return null;
   if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
-  return r.json();
+  // decode explicitly as UTF-8: the raw content-type has no charset and some
+  // browsers (iOS Safari) fall back to Latin-1, mangling em-dashes into "â€""
+  const buf = await r.arrayBuffer();
+  return JSON.parse(new TextDecoder("utf-8").decode(buf));
 }
 async function ghList(dir) {
   if (localMode()) {
@@ -351,19 +359,43 @@ function planLine(p, o) {
   const reps = p.reps_lo === p.reps_hi ? p.reps_lo : `${p.reps_lo}–${p.reps_hi}`;
   return `<div class="sets"><b>${sets}×${reps} @ ${fmtW(w)}</b>${p.note ? ` — ${esc(p.note)}` : ""}</div>`;
 }
+function currentSchedule() {
+  // priority: unsaved picker edits > approved plan > config defaults
+  const base = Object.assign({}, (S.config.training_days || {}),
+    (S.approval && S.approval.week_of === S.proposal.week_of && S.approval.schedule) || {});
+  delete base._comment;
+  return Object.assign(base, schedule);
+}
+function dateFor(weekOf, wd) {
+  const i = WD.indexOf(wd); if (i < 0) return "";
+  const d = new Date(weekOf + "T00:00:00"); d.setDate(d.getDate() + i);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
 function renderWeek(v) {
   const P = S.proposal;
   if (!P) { v.innerHTML = `<h1>Next week</h1><div class="center">No proposal yet.<br>It generates every Sunday evening — or run the propose workflow from GitHub.</div>`; return; }
   const approved = S.approval && S.approval.week_of === P.week_of;
-  const nEdits = Object.keys(overrides).length;
+  const nEdits = Object.keys(overrides).length + Object.keys(schedule).length;
+  const sched = currentSchedule();
+  // order days by scheduled weekday, core day directly under its lift day
+  const lifts = P.days.filter(d => !LIFT_OF[d.key])
+    .sort((a, b) => WD.indexOf(sched[a.key]) - WD.indexOf(sched[b.key]));
+  const ordered = [];
+  lifts.forEach(d => { ordered.push(d); const c = P.days.find(x => x.key === CORE_OF[d.key]); if (c) ordered.push(c); });
   v.innerHTML = `
     <h1>Week of ${esc(P.week_of)}</h1>
     <p class="sub">from data through ${esc(P.generated_from_data_through)}${P.acwr ? ` · load ratio ${P.acwr}` : ""}</p>
     ${P.back_cleared ? "" : `<div class="banner">Lower-back clearance gate is ON — gated lifts hold and are excluded from any push. Flip <b>back_cleared</b> in data/config.json after PT clearance.</div>`}
     ${P.warnings.map(w => `<div class="banner warn">${esc(w)}</div>`).join("")}
-    ${approved ? `<div class="banner ok">Approved ${esc(S.approval.approved_at)}. Re-approve to overwrite.</div>` : ""}
-    ${P.days.map(day => `
-      <div class="day-h"><span class="d">${esc(day.label)}</span></div>
+    ${approved ? `<div class="banner ok">Approved ${esc(S.approval.approved_at)} — on your Garmin calendar. Change a day or a weight and re-approve to re-push.</div>` : ""}
+    ${ordered.map(day => `
+      <div class="day-h"><span class="d">${esc(day.label)}</span>
+        ${LIFT_OF[day.key]
+          ? `<span class="meta">with ${esc((P.days.find(x => x.key === LIFT_OF[day.key]) || {}).label || "").split("—").pop().trim()}</span>`
+          : `<select class="daypick" onchange="setDay('${day.key}', this.value)">
+              ${WD.map(w => `<option value="${w}" ${sched[day.key] === w ? "selected" : ""}>${w} ${dateFor(P.week_of, w)}</option>`).join("")}
+            </select>`}
+      </div>
       <div class="card">
         ${day.exercises.map((p, i) => {
           const k = day.key + ":" + i, o = overrides[k] || {};
@@ -378,8 +410,9 @@ function renderWeek(v) {
       <button class="primary" style="flex:1" onclick="approve(this)">${approved ? "Re-approve" : "Approve week"}${nEdits ? ` (${nEdits} edit${nEdits > 1 ? "s" : ""})` : ""}</button>
     </div>
     <div class="statusline" id="apstat"></div>
-    <p class="sub" style="margin-top:0.6rem">Approving pushes 4 combined workouts (lift + its core day) to your Garmin library — pick any of them on any day from the watch. Warmup ramps and core circuits are built in.</p>`;
+    <p class="sub" style="margin-top:0.6rem">Approving schedules 4 combined workouts (lift + its core day) on your Garmin calendar — the watch downloads them on its next sync. Moved a session? Pick the new day above and re-approve; the old dates are cleared and the new ones pushed.</p>`;
 }
+window.setDay = function (key, wd) { schedule[key] = wd; render(); };
 window.editEx = function (dayKey, i) {
   const day = S.proposal.days.find(d => d.key === dayKey), p = day.exercises[i];
   const k = dayKey + ":" + i, o = overrides[k] || {};
@@ -422,9 +455,11 @@ window.approve = async function (btn) {
       const o = overrides[day.key + ":" + i];
       if (o) { Object.assign(p, o); p.overridden = true; }
     }));
-    const approval = { week_of: plan.week_of, approved_at: new Date().toISOString().slice(0, 16).replace("T", " "), status: "approved", days: plan.days };
+    const sched = currentSchedule();
+    const approval = { week_of: plan.week_of, approved_at: new Date().toISOString().slice(0, 16).replace("T", " "),
+                       status: "approved", schedule: sched, days: plan.days };
     await ghWriteJson("data/approval.json", approval, "approve: week of " + plan.week_of);
-    S.approval = approval; overrides = {};
+    S.approval = approval; overrides = {}; schedule = {};
     $("#apstat").textContent = "Approved and recorded ✓";
     render();
   } catch (e) { $("#apstat").textContent = e.message; btn.disabled = false; }
